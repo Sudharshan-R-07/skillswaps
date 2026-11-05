@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -12,134 +12,145 @@ import {
   Database,
   Briefcase,
   Filter,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/layout/Footer";
+import api from "../../api/api";
 
-const courseData = [
-  {
-    id: 1,
-    title: "Complete React Developer",
-    instructor: "Alex Morgan",
-    category: "Development",
-    level: "Beginner",
-    duration: "12 hours",
-    students: 2400,
-    rating: 4.9,
-    color: "from-indigo-500 to-blue-600",
-    icon: Code2,
-    description: "Learn React from fundamentals to advanced concepts.",
-  },
-  {
-    id: 2,
-    title: "UI/UX Design Fundamentals",
-    instructor: "Sarah Chen",
-    category: "Design",
-    level: "Beginner",
-    duration: "8 hours",
-    students: 1800,
-    rating: 4.8,
-    color: "from-purple-500 to-pink-500",
-    icon: Palette,
-    description: "Master design principles and create beautiful interfaces.",
-  },
-  {
-    id: 3,
-    title: "Python Data Analytics",
-    instructor: "David Wilson",
-    category: "Data Science",
-    level: "Intermediate",
-    duration: "15 hours",
-    students: 3100,
-    rating: 4.9,
-    color: "from-emerald-500 to-teal-600",
-    icon: Database,
-    description: "Analyze data using Python, Pandas, and visualization.",
-  },
-  {
-    id: 4,
-    title: "Digital Marketing Basics",
-    instructor: "Emily Johnson",
-    category: "Business",
-    level: "Beginner",
-    duration: "6 hours",
-    students: 1200,
-    rating: 4.7,
-    color: "from-orange-500 to-red-500",
-    icon: Briefcase,
-    description: "Learn SEO, social media marketing, and digital strategy.",
-  },
-  {
-    id: 5,
-    title: "Full Stack Web Development",
-    instructor: "Michael Brown",
-    category: "Development",
-    level: "Intermediate",
-    duration: "20 hours",
-    students: 4200,
-    rating: 4.9,
-    color: "from-cyan-500 to-blue-600",
-    icon: Code2,
-    description: "Build complete applications using frontend and backend.",
-  },
-  {
-    id: 6,
-    title: "Advanced Figma Design",
-    instructor: "Olivia Davis",
-    category: "Design",
-    level: "Advanced",
-    duration: "10 hours",
-    students: 900,
-    rating: 4.8,
-    color: "from-fuchsia-500 to-purple-600",
-    icon: Palette,
-    description: "Create professional prototypes and design systems.",
-  },
+const categories = [
+  "All",
+  "Development",
+  "Design",
+  "Data Science",
+  "Business",
 ];
 
-const categories = ["All", "Development", "Design", "Data Science", "Business"];
 const levels = ["All Levels", "Beginner", "Intermediate", "Advanced"];
 
+const getCourseIcon = (category = "") => {
+  const value = category.toLowerCase();
+
+  if (value.includes("design")) return Palette;
+  if (value.includes("data")) return Database;
+  if (value.includes("business")) return Briefcase;
+
+  return Code2;
+};
+
 export default function Courses() {
+  const [courses, setCourses] = useState([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [level, setLevel] = useState("All Levels");
 
-  const filteredCourses = courseData.filter((course) => {
-    const matchesSearch =
-      course.title.toLowerCase().includes(search.toLowerCase()) ||
-      course.instructor.toLowerCase().includes(search.toLowerCase());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-    const matchesCategory =
-      category === "All" || course.category === category;
+  // Fetch real courses from backend / MongoDB
+  useEffect(() => {
+    let active = true;
 
-    const matchesLevel =
-      level === "All Levels" || course.level === level;
+    const fetchCourses = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    return matchesSearch && matchesCategory && matchesLevel;
-  });
+        const response = await api.get("/courses");
+
+        // Supports common backend response structures
+        const fetchedCourses =
+          response.data?.courses ??
+          response.data?.data?.courses ??
+          response.data?.data ??
+          [];
+
+        if (!Array.isArray(fetchedCourses)) {
+          throw new Error("Invalid courses response from server.");
+        }
+
+        if (active) {
+          // Only backend data is displayed; no local mock data
+          setCourses(fetchedCourses);
+        }
+      } catch (err) {
+        if (active) {
+          setCourses([]);
+          setError(
+            err.response?.data?.message ||
+              err.message ||
+              "Unable to load courses."
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    fetchCourses();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Search and filters
+  const filteredCourses = useMemo(() => {
+    return courses.filter((course) => {
+      const title = course.title || "";
+      const instructor =
+        course.instructor?.name ||
+        course.instructorName ||
+        course.instructor ||
+        "";
+
+      const courseCategory = course.category || "Development";
+      const courseLevel = course.level || "Beginner";
+
+      const matchesSearch =
+        title.toLowerCase().includes(search.toLowerCase()) ||
+        String(instructor).toLowerCase().includes(search.toLowerCase());
+
+      const matchesCategory =
+        category === "All" || courseCategory === category;
+
+      const matchesLevel =
+        level === "All Levels" || courseLevel === level;
+
+      return matchesSearch && matchesCategory && matchesLevel;
+    });
+  }, [courses, search, category, level]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setCategory("All");
+    setLevel("All Levels");
+  };
 
   return (
     <>
       <Navbar />
 
       <main className="min-h-screen bg-slate-50">
-        {/* Header */}
+        {/* HEADER */}
         <section className="bg-white px-6 py-14">
           <div className="mx-auto max-w-7xl">
-            <p className="font-semibold text-indigo-600">LEARNING LIBRARY</p>
+            <p className="font-semibold text-indigo-600">
+              LEARNING LIBRARY
+            </p>
 
             <h1 className="mt-3 text-4xl font-bold text-slate-900">
               Explore Courses
             </h1>
 
             <p className="mt-4 max-w-2xl text-slate-500">
-              Discover courses, learn new skills, and take your knowledge
-              to the next level.
+              Discover courses, learn new skills, and take your
+              knowledge to the next level.
             </p>
 
-            {/* Search */}
+            {/* SEARCH */}
             <div className="mt-8 flex max-w-2xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <Search className="text-slate-400" size={20} />
 
@@ -153,10 +164,10 @@ export default function Courses() {
           </div>
         </section>
 
-        {/* Catalog */}
+        {/* COURSE CATALOG */}
         <section className="mx-auto max-w-7xl px-6 py-12">
           <div className="flex flex-col gap-8 lg:flex-row">
-            {/* Filters */}
+            {/* FILTERS */}
             <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-6 lg:w-64">
               <div className="flex items-center gap-2 font-bold text-slate-900">
                 <Filter size={18} />
@@ -193,101 +204,171 @@ export default function Courses() {
                 className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               >
                 {levels.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
 
               <button
-                onClick={() => {
-                  setSearch("");
-                  setCategory("All");
-                  setLevel("All Levels");
-                }}
+                onClick={resetFilters}
                 className="mt-5 w-full rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
                 Reset Filters
               </button>
             </aside>
 
-            {/* Course Cards */}
+            {/* COURSE RESULTS */}
             <div className="flex-1">
               <div className="mb-6 flex items-center justify-between">
                 <p className="text-sm text-slate-500">
-                  Showing <strong>{filteredCourses.length}</strong> courses
+                  Showing{" "}
+                  <strong>{filteredCourses.length}</strong> courses
                 </p>
               </div>
 
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredCourses.map((course) => {
-                  const Icon = course.icon;
-
-                  return (
-                    <article
-                      key={course.id}
-                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-xl"
-                    >
-                      <div
-                        className={`flex h-44 items-center justify-center bg-gradient-to-br ${course.color} text-white`}
-                      >
-                        <Icon size={60} strokeWidth={1.5} />
-                      </div>
-
-                      <div className="p-5">
-                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
-                          {course.category}
-                        </span>
-
-                        <h3 className="mt-4 text-lg font-bold text-slate-900">
-                          {course.title}
-                        </h3>
-
-                        <p className="mt-2 text-sm text-slate-500">
-                          By {course.instructor}
-                        </p>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="flex items-center gap-1 text-amber-500">
-                            <Star size={14} fill="currentColor" />
-                            {course.rating}
-                          </span>
-
-                          <span className="flex items-center gap-1">
-                            <Users size={14} />
-                            {course.students.toLocaleString()}
-                          </span>
-
-                          <span className="flex items-center gap-1">
-                            <Clock size={14} />
-                            {course.duration}
-                          </span>
-                        </div>
-
-                        <div className="mt-4 text-xs font-medium text-slate-500">
-                          {course.level}
-                        </div>
-
-                        <Link
-                          to={`/courses/${course.id}`}
-                          className="mt-5 block rounded-xl bg-indigo-600 py-3 text-center text-sm font-semibold text-white hover:bg-indigo-700"
-                        >
-                          View Course
-                        </Link>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-
-              {filteredCourses.length === 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
-                  <BookOpen className="mx-auto text-slate-300" size={48} />
-                  <h3 className="mt-4 text-xl font-bold text-slate-800">
-                    No courses found
-                  </h3>
-                  <p className="mt-2 text-slate-500">
-                    Try another search or category.
+              {/* LOADING */}
+              {loading && (
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-white py-20">
+                  <Loader2
+                    size={40}
+                    className="animate-spin text-indigo-600"
+                  />
+                  <p className="mt-4 text-slate-500">
+                    Fetching courses from database...
                   </p>
                 </div>
+              )}
+
+              {/* ERROR */}
+              {!loading && error && (
+                <div className="rounded-2xl border border-red-200 bg-white py-16 text-center">
+                  <AlertCircle
+                    size={45}
+                    className="mx-auto text-red-500"
+                  />
+                  <h3 className="mt-4 text-xl font-bold text-slate-800">
+                    Unable to load courses
+                  </h3>
+                  <p className="mt-2 px-5 text-sm text-red-500">
+                    {error}
+                  </p>
+
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-5 rounded-lg bg-indigo-600 px-5 py-3 text-white"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {/* COURSE CARDS */}
+              {!loading && !error && (
+                <>
+                  <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                    {filteredCourses.map((course) => {
+                      const Icon = getCourseIcon(course.category);
+
+                      const instructor =
+                        course.instructor?.name ||
+                        course.instructorName ||
+                        course.instructor ||
+                        "SkillSwap Instructor";
+
+                      const courseId = course._id || course.id;
+
+                      return (
+                        <article
+                          key={courseId}
+                          className="overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-xl"
+                        >
+                          {/* COURSE IMAGE */}
+                          {course.thumbnail || course.image ? (
+                            <img
+                              src={course.thumbnail || course.image}
+                              alt={course.title}
+                              className="h-44 w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-44 items-center justify-center bg-gradient-to-br from-indigo-500 to-blue-600 text-white">
+                              <Icon size={60} strokeWidth={1.5} />
+                            </div>
+                          )}
+
+                          <div className="p-5">
+                            <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
+                              {course.category || "Development"}
+                            </span>
+
+                            <h3 className="mt-4 text-lg font-bold text-slate-900">
+                              {course.title}
+                            </h3>
+
+                            <p className="mt-2 text-sm text-slate-500">
+                              By {instructor}
+                            </p>
+
+                            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                              <span className="flex items-center gap-1 text-amber-500">
+                                <Star size={14} fill="currentColor" />
+                                {course.rating || "New"}
+                              </span>
+
+                              <span className="flex items-center gap-1">
+                                <Users size={14} />
+                                {Number(course.students || 0).toLocaleString()}
+                              </span>
+
+                              <span className="flex items-center gap-1">
+                                <Clock size={14} />
+                                {course.duration || "Self-paced"}
+                              </span>
+                            </div>
+
+                            <div className="mt-4 text-xs font-medium text-slate-500">
+                              {course.level || "Beginner"}
+                            </div>
+
+                            <Link
+                              to={`/courses/${courseId}`}
+                              className="mt-5 block rounded-xl bg-indigo-600 py-3 text-center text-sm font-semibold text-white hover:bg-indigo-700"
+                            >
+                              View Course
+                            </Link>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {/* EMPTY DATABASE / FILTER RESULTS */}
+                  {filteredCourses.length === 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
+                      <BookOpen
+                        className="mx-auto text-slate-300"
+                        size={48}
+                      />
+
+                      <h3 className="mt-4 text-xl font-bold text-slate-800">
+                        No courses found
+                      </h3>
+
+                      <p className="mt-2 text-slate-500">
+                        {courses.length === 0
+                          ? "No courses are available in the database yet."
+                          : "Try another search or category."}
+                      </p>
+
+                      <button
+                        onClick={resetFilters}
+                        className="mt-5 rounded-lg border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600"
+                      >
+                        Reset Filters
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
